@@ -42,7 +42,9 @@ struct MapView: UIViewRepresentable {
         }
         
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-            parent.region = mapView.region
+            DispatchQueue.main.async {
+                self.parent.region = mapView.region
+            }
         }
     }
 }

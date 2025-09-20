@@ -12,6 +12,9 @@
 		A1B2C3D81234567890ABCDEF /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D71234567890ABCDEF /* MapView.swift */; };
 		A1B2C3DA1234567890ABCDEF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D91234567890ABCDEF /* Assets.xcassets */; };
 		A1B2C3DD1234567890ABCDEF /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3DC1234567890ABCDEF /* Preview Assets.xcassets */; };
+		A1B2C3DF1234567890ABCDEF /* AuthenticationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3DE1234567890ABCDEF /* AuthenticationManager.swift */; };
+		A1B2C3E11234567890ABCDEF /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3E01234567890ABCDEF /* ProfileView.swift */; };
+		A1B2C3E31234567890ABCDEF /* TreeShopMaps.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3E21234567890ABCDEF /* TreeShopMaps.xcdatamodeld */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,7 +24,11 @@
 		A1B2C3D71234567890ABCDEF /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
 		A1B2C3D91234567890ABCDEF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1B2C3DC1234567890ABCDEF /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		A1B2C3DE1234567890ABCDEF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3DE1234567890ABCDEF /* AuthenticationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationManager.swift; sourceTree = "<group>"; };
+		A1B2C3E01234567890ABCDEF /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		A1B2C3E21234567890ABCDEF /* TreeShopMaps.xcdatamodeld */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = TreeShopMaps.xcdatamodeld; sourceTree = "<group>"; };
+		A1B2C3E41234567890ABCDEF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3E51234567890ABCDEF /* TreeShopMaps.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TreeShopMaps.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,11 +61,14 @@
 		A1B2C3D21234567890ABCDEF /* TreeShopMaps */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3E51234567890ABCDEF /* TreeShopMaps.entitlements */,
 				A1B2C3D31234567890ABCDEF /* TreeShopMapsApp.swift */,
 				A1B2C3D51234567890ABCDEF /* ContentView.swift */,
-				A1B2C3D71234567890ABCDEF /* MapView.swift */,
+				A1B2C3F01234567890ABCDEF /* Models */,
+				A1B2C3F11234567890ABCDEF /* Views */,
+				A1B2C3F21234567890ABCDEF /* Services */,
 				A1B2C3D91234567890ABCDEF /* Assets.xcassets */,
-				A1B2C3DE1234567890ABCDEF /* Info.plist */,
+				A1B2C3E41234567890ABCDEF /* Info.plist */,
 				A1B2C3DB1234567890ABCDEF /* Preview Content */,
 			);
 			path = TreeShopMaps;
@@ -72,12 +82,37 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
+		A1B2C3F01234567890ABCDEF /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3E21234567890ABCDEF /* TreeShopMaps.xcdatamodeld */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A1B2C3F11234567890ABCDEF /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D71234567890ABCDEF /* MapView.swift */,
+				A1B2C3E01234567890ABCDEF /* ProfileView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A1B2C3F21234567890ABCDEF /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3DE1234567890ABCDEF /* AuthenticationManager.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		A1B2C3CF1234567890ABCDEF /* TreeShopMaps */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A1B2C3E11234567890ABCDEF /* Build configuration list for PBXNativeTarget "TreeShopMaps" */;
+			buildConfigurationList = A1B2C3E61234567890ABCDEF /* Build configuration list for PBXNativeTarget "TreeShopMaps" */;
 			buildPhases = (
 				A1B2C3CC1234567890ABCDEF /* Sources */,
 				A1B2C3CD1234567890ABCDEF /* Frameworks */,
@@ -104,6 +139,17 @@
 				TargetAttributes = {
 					A1B2C3CF1234567890ABCDEF = {
 						CreatedOnToolsVersion = 15.0;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 0;
+							};
+							com.apple.Push = {
+								enabled = 0;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -145,13 +191,16 @@
 				A1B2C3D61234567890ABCDEF /* ContentView.swift in Sources */,
 				A1B2C3D81234567890ABCDEF /* MapView.swift in Sources */,
 				A1B2C3D41234567890ABCDEF /* TreeShopMapsApp.swift in Sources */,
+				A1B2C3DF1234567890ABCDEF /* AuthenticationManager.swift in Sources */,
+				A1B2C3E11234567890ABCDEF /* ProfileView.swift in Sources */,
+				A1B2C3E31234567890ABCDEF /* TreeShopMaps.xcdatamodeld in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		A1B2C3DF1234567890ABCDEF /* Debug */ = {
+		A1B2C3E71234567890ABCDEF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -213,7 +262,7 @@
 			};
 			name = Debug;
 		};
-		A1B2C3E01234567890ABCDEF /* Release */ = {
+		A1B2C3E81234567890ABCDEF /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -269,14 +318,16 @@
 			};
 			name = Release;
 		};
-		A1B2C3E21234567890ABCDEF /* Debug */ = {
+		A1B2C3E91234567890ABCDEF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TreeShopMaps/TreeShopMaps.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"TreeShopMaps/Preview Content\"";
+				DEVELOPMENT_TEAM = FG5G9N6B6P;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TreeShopMaps/Info.plist;
@@ -299,14 +350,16 @@
 			};
 			name = Debug;
 		};
-		A1B2C3E31234567890ABCDEF /* Release */ = {
+		A1B2C3EA1234567890ABCDEF /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TreeShopMaps/TreeShopMaps.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"TreeShopMaps/Preview Content\"";
+				DEVELOPMENT_TEAM = FG5G9N6B6P;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TreeShopMaps/Info.plist;
@@ -335,22 +388,35 @@
 		A1B2C3CB1234567890ABCDEF /* Build configuration list for PBXProject "TreeShopMaps" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1B2C3DF1234567890ABCDEF /* Debug */,
-				A1B2C3E01234567890ABCDEF /* Release */,
+				A1B2C3E71234567890ABCDEF /* Debug */,
+				A1B2C3E81234567890ABCDEF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A1B2C3E11234567890ABCDEF /* Build configuration list for PBXNativeTarget "TreeShopMaps" */ = {
+		A1B2C3E61234567890ABCDEF /* Build configuration list for PBXNativeTarget "TreeShopMaps" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1B2C3E21234567890ABCDEF /* Debug */,
-				A1B2C3E31234567890ABCDEF /* Release */,
+				A1B2C3E91234567890ABCDEF /* Debug */,
+				A1B2C3EA1234567890ABCDEF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCVersionGroup section */
+		A1B2C3E21234567890ABCDEF /* TreeShopMaps.xcdatamodeld */ = {
+			isa = XCVersionGroup;
+			children = (
+				A1B2C3E31234567890ABCDEF /* TreeShopMaps.xcdatamodel */,
+			);
+			currentVersion = A1B2C3E31234567890ABCDEF /* TreeShopMaps.xcdatamodel */;
+			path = TreeShopMaps.xcdatamodeld;
+			sourceTree = "<group>";
+			versionGroupType = wrapper.xcdatamodel;
+		};
+/* End XCVersionGroup section */
 	};
 	rootObject = A1B2C3C81234567890ABCDEF /* Project object */;
 }

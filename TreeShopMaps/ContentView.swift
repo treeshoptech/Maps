@@ -10,7 +10,9 @@ struct ContentView: View {
     @State private var showUserLocation = true
     @State private var searchText = ""
     @State private var showSearch = false
+    @State private var showProfile = false
     @StateObject private var locationManager = LocationManager()
+    @StateObject private var authManager = AuthenticationManager()
     
     var body: some View {
         ZStack {
@@ -22,9 +24,20 @@ struct ContentView: View {
                     SearchBar(text: $searchText, onSearchButtonClicked: {
                         performSearch()
                     })
-                    .padding(.horizontal)
-                    .padding(.top, 10)
+                    
+                    Button(action: {
+                        showProfile = true
+                    }) {
+                        Image(systemName: authManager.isAuthenticated ? "person.crop.circle.fill" : "person.crop.circle")
+                            .font(.system(size: 22))
+                            .foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                            .background(Color.black.opacity(0.75))
+                            .clipShape(Circle())
+                    }
                 }
+                .padding(.horizontal)
+                .padding(.top, 10)
                 
                 Spacer()
                 
@@ -77,6 +90,9 @@ struct ContentView: View {
         }
         .onAppear {
             locationManager.requestLocationPermission()
+        }
+        .sheet(isPresented: $showProfile) {
+            ProfileView()
         }
     }
     
