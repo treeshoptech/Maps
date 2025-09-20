@@ -1,7 +1,7 @@
 import SwiftUI
 import AuthenticationServices
 import CoreData
-import CloudKit
+import UIKit
 
 class AuthenticationManager: NSObject, ObservableObject {
     @Published var isAuthenticated = false
@@ -9,18 +9,16 @@ class AuthenticationManager: NSObject, ObservableObject {
     @Published var userEmail: String = ""
     @Published var userFullName: String = ""
     
-    private let container: NSPersistentCloudKitContainer
+    private let container: NSPersistentContainer
     private let context: NSManagedObjectContext
     
     override init() {
-        container = NSPersistentCloudKitContainer(name: "TreeShopMaps")
+        container = NSPersistentContainer(name: "TreeShopMaps")
         
         container.loadPersistentStores { description, error in
             if let error = error {
                 print("Core Data failed to load: \(error.localizedDescription)")
             }
-            
-            description.cloudKitContainerOptions?.databaseScope = .private
         }
         
         container.viewContext.automaticallyMergesChangesFromParent = true
@@ -36,6 +34,7 @@ class AuthenticationManager: NSObject, ObservableObject {
         
         let controller = ASAuthorizationController(authorizationRequests: [request])
         controller.delegate = self
+        controller.presentationContextProvider = self
         controller.performRequests()
     }
     
@@ -125,5 +124,15 @@ extension AuthenticationManager: ASAuthorizationControllerDelegate {
     
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
         print("Sign in with Apple failed: \(error.localizedDescription)")
+    }
+}
+
+extension AuthenticationManager: ASAuthorizationControllerPresentationContextProviding {
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
+            return UIWindow()
+        }
+        return window
     }
 }
