@@ -79,7 +79,7 @@ struct ProfileView: View {
                                 .foregroundColor(.gray)
                         }
                     }
-                    .onChange(of: selectedPhoto) { _ in
+                    .onChange(of: selectedPhoto) {
                         loadImage()
                     }
                     
