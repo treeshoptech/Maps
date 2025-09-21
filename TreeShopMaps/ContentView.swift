@@ -1,523 +1,6 @@
 import SwiftUI
 import MapKit
 import CoreLocation
-import CoreData
-
-// MARK: - Service Types
-
-enum TreeShopService: String, CaseIterable {
-    case forestryMulching = "Forestry Mulching"
-    case landClearing = "Land Clearing" 
-    case stumpGrinding = "Stump Grinding"
-    
-    var icon: String {
-        switch self {
-        case .forestryMulching: return "tree.fill"
-        case .landClearing: return "square.slash"
-        case .stumpGrinding: return "circle.slash"
-        }
-    }
-}
-
-// MARK: - Project Manager (CoreData-based)
-
-class ProjectManager: ObservableObject {
-    @Published var activeProject: Project?
-    @Published var showNewProjectSheet = false
-    
-    private let container: NSPersistentContainer
-    let context: NSManagedObjectContext
-    private var timer: Timer?
-    
-    init() {
-        container = NSPersistentContainer(name: "TreeShopMaps")
-        container.loadPersistentStores { _, error in
-            if let error = error {
-                print("CoreData failed to load: \(error.localizedDescription)")
-            }
-        }
-        context = container.viewContext
-        loadActiveProject()
-    }
-    
-    func createProject(name: String, clientName: String, address: String, serviceType: TreeShopService) {
-        let project = Project(context: context)
-        project.id = UUID()
-        project.name = name
-        project.clientName = clientName
-        project.clientAddress = address
-        project.serviceType = serviceType.rawValue
-        project.createdAt = Date()
-        project.updatedAt = Date()
-        project.isActive = false
-        project.isCompleted = false
-        project.totalDuration = 0
-        
-        saveContext()
-    }
-    
-    func attachWorkAreaToProject(_ workArea: WorkAreaDisplay, project: Project) {
-        // Create CoreData WorkArea from WorkAreaDisplay
-        let coreDataWorkArea = WorkArea(context: context)
-        coreDataWorkArea.id = workArea.id
-        coreDataWorkArea.name = workArea.name
-        coreDataWorkArea.area = workArea.area
-        coreDataWorkArea.perimeter = workArea.perimeter
-        coreDataWorkArea.createdAt = Date()
-        coreDataWorkArea.updatedAt = Date()
-        coreDataWorkArea.isCompleted = false
-        
-        // Encode coordinates as simple coordinate pairs
-        let coordinatePairs = workArea.coordinates.map { ["lat": $0.latitude, "lng": $0.longitude] }
-        if let encoded = try? JSONEncoder().encode(coordinatePairs) {
-            coreDataWorkArea.coordinates = encoded
-        }
-        
-        project.addToWorkAreas(coreDataWorkArea)
-        saveContext()
-    }
-    
-    func startProject(_ project: Project) {
-        // Stop any currently active project
-        if let active = activeProject {
-            stopProject(active)
-        }
-        
-        project.isActive = true
-        project.startTime = Date()
-        activeProject = project
-        saveContext()
-        startTimer()
-    }
-    
-    func pauseProject(_ project: Project) {
-        project.isActive = false
-        if let startTime = project.startTime {
-            project.totalDuration += Date().timeIntervalSince(startTime)
-        }
-        project.startTime = nil
-        saveContext()
-        stopTimer()
-    }
-    
-    func stopProject(_ project: Project) {
-        project.isActive = false
-        project.isCompleted = true
-        project.endTime = Date()
-        
-        if let startTime = project.startTime {
-            project.totalDuration += Date().timeIntervalSince(startTime)
-        }
-        
-        activeProject = nil
-        saveContext()
-        stopTimer()
-    }
-    
-    func getFormattedDuration(for project: Project) -> String {
-        var totalSeconds = project.totalDuration
-        
-        // Add current session time if project is active
-        if project.isActive, let startTime = project.startTime {
-            totalSeconds += Date().timeIntervalSince(startTime)
-        }
-        
-        let hours = Int(totalSeconds) / 3600
-        let minutes = Int(totalSeconds) / 60 % 60
-        let seconds = Int(totalSeconds) % 60
-        
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            return String(format: "%02d:%02d", minutes, seconds)
-        }
-    }
-    
-    private func startTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            self.objectWillChange.send()
-        }
-    }
-    
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
-    }
-    
-    private func loadActiveProject() {
-        let request: NSFetchRequest<Project> = Project.fetchRequest()
-        request.predicate = NSPredicate(format: "isActive == YES")
-        
-        do {
-            let projects = try context.fetch(request)
-            activeProject = projects.first
-            if activeProject != nil {
-                startTimer()
-            }
-        } catch {
-            print("Failed to load active project: \(error)")
-        }
-    }
-    
-    private func saveContext() {
-        do {
-            try context.save()
-        } catch {
-            print("Failed to save context: \(error)")
-        }
-    }
-}
-
-// MARK: - Project UI Components
-
-struct NewProjectSheet: View {
-    @Binding var isPresented: Bool
-    @ObservedObject var projectManager: ProjectManager
-    
-    @State private var customerName = ""
-    @State private var customerAddress = ""
-    @State private var selectedService: TreeShopService = .forestryMulching
-    @StateObject private var addressCompleter = AddressCompleter()
-    @State private var showingAddressSuggestions = false
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Text("New Customer Project")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("CUSTOMER DETAILS")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    VStack(spacing: 16) {
-                        TextField("Customer Name", text: $customerName)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                        
-                        // Address field with autocomplete
-                        VStack(spacing: 0) {
-                            TextField("Customer Address", text: $customerAddress)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .onChange(of: customerAddress) {
-                                    addressCompleter.searchFragment = customerAddress
-                                    // Small delay to avoid too many requests
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        showingAddressSuggestions = !customerAddress.isEmpty && !addressCompleter.completions.isEmpty
-                                    }
-                                }
-                                .onReceive(addressCompleter.$completions) { completions in
-                                    showingAddressSuggestions = !customerAddress.isEmpty && !completions.isEmpty
-                                }
-                            
-                            if showingAddressSuggestions && !addressCompleter.completions.isEmpty {
-                                VStack(spacing: 0) {
-                                    ForEach(Array(addressCompleter.completions.prefix(3).enumerated()), id: \.offset) { index, completion in
-                                        Button(action: {
-                                            customerAddress = "\(completion.title), \(completion.subtitle)"
-                                            showingAddressSuggestions = false
-                                        }) {
-                                            HStack {
-                                                Image(systemName: "location")
-                                                    .foregroundColor(.gray)
-                                                    .frame(width: 20)
-                                                
-                                                VStack(alignment: .leading, spacing: 2) {
-                                                    Text(completion.title)
-                                                        .foregroundColor(.primary)
-                                                        .font(.body)
-                                                        .multilineTextAlignment(.leading)
-                                                    
-                                                    if !completion.subtitle.isEmpty {
-                                                        Text(completion.subtitle)
-                                                            .foregroundColor(.gray)
-                                                            .font(.caption)
-                                                            .multilineTextAlignment(.leading)
-                                                    }
-                                                }
-                                                
-                                                Spacer()
-                                            }
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                        }
-                                        
-                                        if index < min(2, addressCompleter.completions.count - 1) {
-                                            Divider()
-                                                .background(Color.gray.opacity(0.3))
-                                        }
-                                    }
-                                }
-                                .background(Color(.systemBackground))
-                                .cornerRadius(8)
-                                .shadow(radius: 4)
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(12)
-                }
-                
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("SERVICE TYPE")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    VStack(spacing: 8) {
-                        ForEach(TreeShopService.allCases, id: \.self) { service in
-                            Button(action: {
-                                selectedService = service
-                            }) {
-                                Text(service.rawValue)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(selectedService == service ? .white : .primary)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(selectedService == service ? Color.blue : Color.gray.opacity(0.1))
-                                    .cornerRadius(8)
-                            }
-                        }
-                    }
-                }
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("NOTES")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    TextEditor(text: .constant("Additional notes..."))
-                        .frame(height: 100)
-                        .padding(8)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
-                        .foregroundColor(.gray)
-                }
-                
-                Spacer()
-                
-                HStack(spacing: 16) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                    .foregroundColor(.red)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(12)
-                    
-                    Button("Create Project") {
-                        projectManager.createProject(
-                            name: customerName,
-                            clientName: customerName,
-                            address: customerAddress,
-                            serviceType: selectedService
-                        )
-                        isPresented = false
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(!customerName.isEmpty ? Color.blue : Color.gray)
-                    .cornerRadius(12)
-                    .disabled(customerName.isEmpty)
-                }
-            }
-            .padding()
-            .background(Color.black)
-            .preferredColorScheme(.dark)
-        }
-    }
-}
-
-struct ProjectSelectionSheet: View {
-    @Binding var isPresented: Bool
-    let projects: [Project]
-    let onProjectSelected: (Project) -> Void
-    let onCreateNew: () -> Void
-    let area: Double
-    let perimeter: Double
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                // Drawing info
-                VStack(spacing: 12) {
-                    Text("Attach Drawing to Project")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                    
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text("Area")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            Text("\(String(format: "%.2f", area)) acres")
-                                .font(.title3)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                        }
-                        
-                        Spacer()
-                        
-                        VStack(alignment: .trailing) {
-                            Text("Perimeter")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            Text("\(String(format: "%.0f", perimeter)) ft")
-                                .font(.title3)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding()
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(12)
-                }
-                
-                // Project list
-                if !projects.isEmpty {
-                    Text("Select Customer Project")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(projects, id: \.id) { project in
-                                Button(action: {
-                                    onProjectSelected(project)
-                                }) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(project.clientName ?? "Unknown Customer")
-                                                .font(.headline)
-                                                .foregroundColor(.white)
-                                            
-                                            Text(project.clientAddress ?? "No address")
-                                                .font(.subheadline)
-                                                .foregroundColor(.gray)
-                                            
-                                            Text(project.serviceType ?? "")
-                                                .font(.caption)
-                                                .foregroundColor(.blue)
-                                        }
-                                        
-                                        Spacer()
-                                        
-                                        Image(systemName: "plus.circle.fill")
-                                            .foregroundColor(.green)
-                                            .font(.title2)
-                                    }
-                                    .padding()
-                                    .background(Color.gray.opacity(0.1))
-                                    .cornerRadius(12)
-                                }
-                            }
-                        }
-                    }
-                    .frame(maxHeight: 300)
-                }
-                
-                // Create new project button
-                Button(action: onCreateNew) {
-                    HStack {
-                        Image(systemName: "plus")
-                        Text("Create New Customer Project")
-                    }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .cornerRadius(12)
-                }
-                
-                // Cancel button
-                Button("Cancel") {
-                    isPresented = false
-                }
-                .foregroundColor(.red)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.red.opacity(0.1))
-                .cornerRadius(12)
-                
-                Spacer()
-            }
-            .padding()
-            .background(Color.black)
-            .navigationTitle("Attach Drawing")
-            .navigationBarTitleDisplayMode(.inline)
-            .preferredColorScheme(.dark)
-        }
-    }
-}
-
-struct ActiveProjectView: View {
-    @ObservedObject var projectManager: ProjectManager
-    let project: Project
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            VStack(spacing: 4) {
-                Text(projectManager.getFormattedDuration(for: project))
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .monospacedDigit()
-                
-                Text(project.isActive ? "ACTIVE" : "PAUSED")
-                    .font(.caption)
-                    .foregroundColor(project.isActive ? .green : .orange)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background((project.isActive ? Color.green : Color.orange).opacity(0.2))
-                    .cornerRadius(4)
-            }
-            
-            HStack(spacing: 12) {
-                if project.isActive {
-                    Button("Pause") {
-                        projectManager.pauseProject(project)
-                    }
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.orange)
-                    .cornerRadius(8)
-                } else {
-                    Button("Resume") {
-                        projectManager.startProject(project)
-                    }
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.green)
-                    .cornerRadius(8)
-                }
-                
-                Button("Complete") {
-                    projectManager.stopProject(project)
-                }
-                .font(.subheadline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(Color.blue)
-                .cornerRadius(8)
-            }
-        }
-        .padding(12)
-        .background(Color.black.opacity(0.8))
-        .cornerRadius(12)
-    }
-}
 
 struct ContentView: View {
     @State private var region = MKCoordinateRegion(
@@ -526,7 +9,6 @@ struct ContentView: View {
     )
     @State private var showUserLocation = true
     @State private var searchText = ""
-    @State private var showSearch = false
     @State private var showProfile = false
     @State private var isDrawingMode = false
     @State private var polygonPoints: [CLLocationCoordinate2D] = []
@@ -537,14 +19,11 @@ struct ContentView: View {
     @State private var showWorkAreaName = false
     @State private var newWorkAreaName = ""
     @State private var showWorkAreaList = false
-    @State private var showProjectSelection = false
-    @State private var availableProjects: [Project] = []
     @State private var showWorkAreaActionSheet = false
     @State private var selectedProjectSize: ProjectSize = .large
     @State private var mapType: MKMapType = .satellite
     @StateObject private var locationManager = LocationManager()
     @StateObject private var authManager = AuthenticationManager()
-    @StateObject private var projectManager = ProjectManager()
     
     var body: some View {
         ZStack {
@@ -569,7 +48,6 @@ struct ContentView: View {
                     selectedWorkArea = selectedWorkArea?.id == workArea.id ? nil : workArea
                 },
                 onWorkAreaLongPressed: { workArea in
-                    // Show action sheet for work area options
                     selectedWorkArea = workArea
                     showWorkAreaActionSheet = true
                 }
@@ -639,12 +117,10 @@ struct ContentView: View {
                             
                             Button(action: {
                                 if !polygonPoints.isEmpty {
-                                    // First click: clear points
                                     polygonPoints.removeAll()
                                     currentArea = 0.0
                                     currentPerimeter = 0.0
                                 } else {
-                                    // Second click (nothing to delete): exit drawing mode
                                     isDrawingMode = false
                                 }
                             }) {
@@ -658,7 +134,7 @@ struct ContentView: View {
                             
                             Button(action: {
                                 if polygonPoints.count >= 3 {
-                                    saveCurrentWorkArea()
+                                    showWorkAreaName = true
                                 } else {
                                     isDrawingMode = false
                                 }
@@ -679,20 +155,6 @@ struct ContentView: View {
                     Spacer()
                     
                     VStack(spacing: 8) {
-                        // Create Project Button
-                        if !isDrawingMode {
-                            Button(action: {
-                                projectManager.showNewProjectSheet = true
-                            }) {
-                                Image(systemName: "doc.text.fill")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.purple.opacity(0.9))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
-                        }
-                        
                         if !isDrawingMode {
                             Button(action: {
                                 isDrawingMode = true
@@ -705,6 +167,7 @@ struct ContentView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 10))
                             }
                         }
+                        
                         Button(action: {
                             zoomIn()
                         }) {
@@ -753,7 +216,6 @@ struct ContentView: View {
         }
         .onAppear {
             locationManager.onLocationUpdate = { location in
-                // Set region to user location with zoom level ~16
                 region = MKCoordinateRegion(
                     center: location.coordinate,
                     span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
@@ -778,27 +240,6 @@ struct ContentView: View {
                 }
             )
         }
-        .sheet(isPresented: $projectManager.showNewProjectSheet) {
-            NewProjectSheet(
-                isPresented: $projectManager.showNewProjectSheet,
-                projectManager: projectManager
-            )
-        }
-        .sheet(isPresented: $showProjectSelection) {
-            ProjectSelectionSheet(
-                isPresented: $showProjectSelection,
-                projects: availableProjects,
-                onProjectSelected: { project in
-                    attachDrawingToProject(project)
-                },
-                onCreateNew: {
-                    showProjectSelection = false
-                    projectManager.showNewProjectSheet = true
-                },
-                area: currentArea,
-                perimeter: currentPerimeter
-            )
-        }
         .overlay(alignment: .bottomLeading) {
             if showWorkAreaList && !savedWorkAreas.isEmpty {
                 WorkAreaListView(
@@ -814,17 +255,6 @@ struct ContentView: View {
                 .padding(.leading, 16)
                 .padding(.bottom, 100)
                 .transition(.move(edge: .leading).combined(with: .opacity))
-            }
-        }
-        .overlay(alignment: .topTrailing) {
-            // Active Project Display
-            if let activeProject = projectManager.activeProject {
-                ActiveProjectView(
-                    projectManager: projectManager,
-                    project: activeProject
-                )
-                .padding(.trailing, 16)
-                .padding(.top, 100)
             }
         }
         .actionSheet(isPresented: $showWorkAreaActionSheet) {
@@ -870,33 +300,7 @@ struct ContentView: View {
     func saveCurrentWorkArea() {
         guard polygonPoints.count >= 3 else { return }
         
-        // Load available projects
-        loadAvailableProjects()
-        
-        if availableProjects.isEmpty {
-            // No projects exist, show project creation first
-            projectManager.showNewProjectSheet = true
-        } else {
-            // Show project selection
-            showProjectSelection = true
-        }
-    }
-    
-    func loadAvailableProjects() {
-        let request: NSFetchRequest<Project> = Project.fetchRequest()
-        request.predicate = NSPredicate(format: "isCompleted == NO")
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \Project.createdAt, ascending: false)]
-        
-        do {
-            availableProjects = try projectManager.context.fetch(request)
-        } catch {
-            print("Failed to load projects: \(error)")
-            availableProjects = []
-        }
-    }
-    
-    func attachDrawingToProject(_ project: Project) {
-        let workAreaName = "Area \(Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 1000))"
+        let workAreaName = newWorkAreaName.isEmpty ? "Work Area \(savedWorkAreas.count + 1)" : newWorkAreaName
         let workArea = WorkAreaDisplay(
             name: workAreaName,
             coordinates: polygonPoints,
@@ -905,7 +309,6 @@ struct ContentView: View {
             projectSize: .large
         )
         
-        projectManager.attachWorkAreaToProject(workArea, project: project)
         savedWorkAreas.append(workArea)
         
         // Reset drawing state
@@ -913,7 +316,7 @@ struct ContentView: View {
         currentArea = 0.0
         currentPerimeter = 0.0
         isDrawingMode = false
-        showProjectSelection = false
+        newWorkAreaName = ""
     }
     
     func deleteWorkArea(_ workArea: WorkAreaDisplay) {
@@ -1029,15 +432,14 @@ struct WorkAreaRow: View {
     
     var body: some View {
         HStack {
-            // Color indicator and icon
             HStack(spacing: 6) {
                 Circle()
-                    .fill(workArea.projectSize.swiftUIColor)
+                    .fill(Color.green)
                     .frame(width: 12, height: 12)
                 
-                Image(systemName: workArea.projectSize.icon)
+                Image(systemName: "forest.fill")
                     .font(.system(size: 12))
-                    .foregroundColor(workArea.projectSize.swiftUIColor)
+                    .foregroundColor(.green)
             }
             
             VStack(alignment: .leading, spacing: 2) {
@@ -1088,7 +490,6 @@ struct WorkAreaCreationSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                // Area Info
                 VStack(spacing: 12) {
                     Text("Work Area Details")
                         .font(.title2)
@@ -1123,7 +524,6 @@ struct WorkAreaCreationSheet: View {
                     .cornerRadius(12)
                 }
                 
-                // Name Input
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Work Area Name (Optional)")
                         .font(.headline)
@@ -1135,7 +535,6 @@ struct WorkAreaCreationSheet: View {
                 
                 Spacer()
                 
-                // Action Buttons
                 HStack(spacing: 16) {
                     Button("Cancel") {
                         onCancel()
@@ -1163,57 +562,6 @@ struct WorkAreaCreationSheet: View {
             .navigationTitle("Create Work Area")
             .navigationBarTitleDisplayMode(.inline)
             .preferredColorScheme(.dark)
-        }
-    }
-}
-
-struct ProjectSizeButton: View {
-    let projectSize: ProjectSize
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                // Color indicator
-                Circle()
-                    .fill(projectSize.swiftUIColor)
-                    .frame(width: 16, height: 16)
-                
-                // Icon
-                Image(systemName: projectSize.icon)
-                    .font(.system(size: 18))
-                    .foregroundColor(projectSize.swiftUIColor)
-                
-                // Text
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(projectSize.rawValue)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                    
-                    Text(projectSize.description)
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                        .lineLimit(1)
-                }
-                
-                Spacer()
-                
-                // Selection indicator
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.blue)
-                }
-            }
-            .padding()
-            .background(isSelected ? Color.blue.opacity(0.2) : Color.gray.opacity(0.1))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
-            )
-            .cornerRadius(12)
         }
     }
 }
@@ -1332,52 +680,12 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         if !hasInitialLocation {
             hasInitialLocation = true
             onLocationUpdate?(location)
-            // Stop updating after getting initial location to save battery
             locationManager.stopUpdatingLocation()
         }
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("Location manager failed with error: \(error.localizedDescription)")
-    }
-}
-
-// MARK: - Address Autocomplete
-class AddressCompleter: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
-    @Published var completions: [MKLocalSearchCompletion] = []
-    private let completer = MKLocalSearchCompleter()
-    
-    var searchFragment: String = "" {
-        didSet {
-            print("SearchFragment updated: '\(searchFragment)'")
-            if searchFragment.isEmpty || searchFragment.count < 2 {
-                DispatchQueue.main.async {
-                    self.completions = []
-                }
-            } else {
-                completer.queryFragment = searchFragment
-            }
-        }
-    }
-    
-    override init() {
-        super.init()
-        completer.delegate = self
-        completer.resultTypes = [.address, .pointOfInterest]
-    }
-    
-    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
-        print("Completer updated with \(completer.results.count) results")
-        DispatchQueue.main.async {
-            self.completions = completer.results
-        }
-    }
-    
-    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
-        print("Address completer error: \(error.localizedDescription)")
-        DispatchQueue.main.async {
-            self.completions = []
-        }
     }
 }
 
