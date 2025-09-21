@@ -44,6 +44,7 @@ enum ProjectSize: String, CaseIterable, Equatable {
     }
 }
 
+
 struct WorkAreaDisplay: Identifiable, Hashable {
     let id: UUID
     let name: String
@@ -117,6 +118,10 @@ struct MapView: UIViewRepresentable {
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(context.coordinator.handleTap(_:)))
         mapView.addGestureRecognizer(tapGesture)
         
+        let longPressGesture = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(context.coordinator.handleLongPress(_:)))
+        longPressGesture.minimumPressDuration = 0.5
+        mapView.addGestureRecognizer(longPressGesture)
+        
         return mapView
     }
     
@@ -187,6 +192,23 @@ struct MapView: UIViewRepresentable {
                 if let tappedWorkArea = findWorkAreaAt(coordinate: coordinate) {
                     DispatchQueue.main.async {
                         self.parent.onWorkAreaTapped?(tappedWorkArea)
+                    }
+                }
+            }
+        }
+        
+        @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+            guard gesture.state == .began else { return }
+            
+            let mapView = gesture.view as! MKMapView
+            let point = gesture.location(in: mapView)
+            let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+            
+            // Only handle long press when not in drawing mode
+            if !parent.isDrawingMode {
+                if let longPressedWorkArea = findWorkAreaAt(coordinate: coordinate) {
+                    DispatchQueue.main.async {
+                        self.parent.onWorkAreaLongPressed?(longPressedWorkArea)
                     }
                 }
             }

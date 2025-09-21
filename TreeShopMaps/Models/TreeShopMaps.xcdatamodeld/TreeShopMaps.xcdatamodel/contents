@@ -37,15 +37,14 @@
     <entity name="Project" representedClassName="Project" syncable="YES" codeGenerationType="class">
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="name" optional="YES" attributeType="String"/>
-        <attribute name="customerName" optional="YES" attributeType="String"/>
-        <attribute name="address" optional="YES" attributeType="String"/>
-        <attribute name="serviceType" optional="YES" attributeType="String" defaultValueString="forestry_mulching"/>
-        <attribute name="projectStatus" optional="YES" attributeType="String" defaultValueString="draft"/>
-        <attribute name="terrainType" optional="YES" attributeType="String" defaultValueString="flat"/>
-        <attribute name="averageDBH" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
-        <attribute name="totalAcres" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
-        <attribute name="inchAcres" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
-        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="clientName" optional="YES" attributeType="String"/>
+        <attribute name="clientAddress" optional="YES" attributeType="String"/>
+        <attribute name="serviceType" optional="YES" attributeType="String"/>
+        <attribute name="isActive" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="isCompleted" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="totalDuration" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="startTime" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="endTime" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <relationship name="user" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="UserProfile" inverseName="projects" inverseEntity="UserProfile"/>
@@ -54,12 +53,10 @@
     <entity name="WorkArea" representedClassName="WorkArea" syncable="YES" codeGenerationType="class">
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="name" optional="YES" attributeType="String"/>
-        <attribute name="polygonData" optional="YES" attributeType="Binary"/>
-        <attribute name="centerLatitude" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
-        <attribute name="centerLongitude" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
-        <attribute name="areaAcres" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
-        <attribute name="perimeterMeters" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
-        <attribute name="isComplete" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="coordinates" optional="YES" attributeType="Binary"/>
+        <attribute name="area" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="perimeter" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="isCompleted" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <relationship name="project" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Project" inverseName="workAreas" inverseEntity="Project"/>
