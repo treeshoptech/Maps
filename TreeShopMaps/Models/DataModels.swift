@@ -510,7 +510,8 @@ extension WorkArea {
             perimeter += location1.distance(from: location2)
         }
         
-        return perimeter
+        // Convert meters to feet
+        return perimeter * 3.28084
     }
     
     private func calculateBounds(coordinates: [CLLocationCoordinate2D]) -> (center: CLLocationCoordinate2D, span: MKCoordinateSpan) {

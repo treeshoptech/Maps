@@ -5,7 +5,7 @@ import CoreLocation
 struct ContentView: View {
     @State private var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
-        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
     )
     @State private var showUserLocation = true
     @State private var searchText = ""
@@ -19,6 +19,9 @@ struct ContentView: View {
     @State private var selectedWorkArea: WorkAreaDisplay? = nil
     @State private var showWorkAreaName = false
     @State private var newWorkAreaName = ""
+    @State private var showWorkAreaList = false
+    @State private var selectedProjectSize: ProjectSize = .large
+    @State private var mapType: MKMapType = .satellite
     @StateObject private var locationManager = LocationManager()
     @StateObject private var authManager = AuthenticationManager()
     
@@ -33,6 +36,8 @@ struct ContentView: View {
                 currentPerimeter: $currentPerimeter,
                 savedWorkAreas: $savedWorkAreas,
                 selectedWorkArea: $selectedWorkArea,
+                selectedProjectSize: $selectedProjectSize,
+                mapType: $mapType,
                 onPointAdded: { coordinate in
                     // Handle point added
                 },
@@ -53,6 +58,21 @@ struct ContentView: View {
                     SearchBar(text: $searchText, onSearchButtonClicked: {
                         performSearch()
                     })
+                    
+                    if !savedWorkAreas.isEmpty {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                showWorkAreaList.toggle()
+                            }
+                        }) {
+                            Image(systemName: "list.bullet.rectangle")
+                                .font(.system(size: 22))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(showWorkAreaList ? Color.blue.opacity(0.9) : Color.black.opacity(0.75))
+                                .clipShape(Circle())
+                        }
+                    }
                     
                     Button(action: {
                         showProfile = true
@@ -191,34 +211,51 @@ struct ContentView: View {
                 }
             }
         }
+        .onTapGesture {
+            hideKeyboard()
+        }
         .onAppear {
+            locationManager.onLocationUpdate = { location in
+                // Set region to user location with zoom level ~16
+                region = MKCoordinateRegion(
+                    center: location.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                )
+            }
             locationManager.requestLocationPermission()
         }
         .sheet(isPresented: $showProfile) {
             ProfileView()
         }
-        .alert("Name Work Area", isPresented: $showWorkAreaName) {
-            TextField("Work Area Name", text: $newWorkAreaName)
-            Button("Save") {
-                saveCurrentWorkArea()
-            }
-            Button("Cancel", role: .cancel) {
-                isDrawingMode = false
-            }
-        } message: {
-            Text("Enter a name for this work area")
+        .sheet(isPresented: $showWorkAreaName) {
+            WorkAreaCreationSheet(
+                workAreaName: $newWorkAreaName,
+                area: currentArea,
+                perimeter: currentPerimeter,
+                onSave: {
+                    saveCurrentWorkArea()
+                },
+                onCancel: {
+                    isDrawingMode = false
+                    showWorkAreaName = false
+                }
+            )
         }
         .overlay(alignment: .bottomLeading) {
-            if !savedWorkAreas.isEmpty {
+            if showWorkAreaList && !savedWorkAreas.isEmpty {
                 WorkAreaListView(
                     workAreas: savedWorkAreas,
                     selectedWorkArea: $selectedWorkArea,
                     onDelete: { workArea in
                         deleteWorkArea(workArea)
+                    },
+                    onClose: {
+                        showWorkAreaList = false
                     }
                 )
                 .padding(.leading, 16)
                 .padding(.bottom, 100)
+                .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
     }
@@ -250,12 +287,13 @@ struct ContentView: View {
             name: workAreaName,
             coordinates: polygonPoints,
             area: currentArea,
-            perimeter: currentPerimeter
+            perimeter: currentPerimeter,
+            projectSize: .large
         )
         
         savedWorkAreas.append(workArea)
         
-        // Reset drawing state
+        // Reset drawing state - clear points first to trigger polygon cleanup
         polygonPoints.removeAll()
         currentArea = 0.0
         currentPerimeter = 0.0
@@ -290,7 +328,7 @@ struct MeasurementDisplay: View {
                 HStack {
                     Image(systemName: "arrow.triangle.swap")
                         .foregroundColor(.green)
-                    Text("Perimeter: \(String(format: "%.0f", perimeter)) m")
+                    Text("Perimeter: \(String(format: "%.0f", perimeter)) ft")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
                 }
@@ -320,13 +358,24 @@ struct WorkAreaListView: View {
     let workAreas: [WorkAreaDisplay]
     @Binding var selectedWorkArea: WorkAreaDisplay?
     let onDelete: (WorkAreaDisplay) -> Void
+    let onClose: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Work Areas")
-                .font(.headline)
-                .foregroundColor(.white)
-                .padding(.horizontal, 12)
+            HStack {
+                Text("Work Areas")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white)
+                }
+            }
+            .padding(.horizontal, 12)
             
             ScrollView {
                 LazyVStack(spacing: 4) {
@@ -365,6 +414,17 @@ struct WorkAreaRow: View {
     
     var body: some View {
         HStack {
+            // Color indicator and icon
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(workArea.projectSize.swiftUIColor)
+                    .frame(width: 12, height: 12)
+                
+                Image(systemName: workArea.projectSize.icon)
+                    .font(.system(size: 12))
+                    .foregroundColor(workArea.projectSize.swiftUIColor)
+            }
+            
             VStack(alignment: .leading, spacing: 2) {
                 Text(workArea.name)
                     .font(.subheadline)
@@ -378,7 +438,7 @@ struct WorkAreaRow: View {
                     
                     Spacer()
                     
-                    Text("\(String(format: "%.0f", workArea.perimeter)) m")
+                    Text("\(String(format: "%.0f", workArea.perimeter)) ft")
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
@@ -402,33 +462,230 @@ struct WorkAreaRow: View {
     }
 }
 
+struct WorkAreaCreationSheet: View {
+    @Binding var workAreaName: String
+    let area: Double
+    let perimeter: Double
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                // Area Info
+                VStack(spacing: 12) {
+                    Text("Work Area Details")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("Area")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            Text("\(String(format: "%.2f", area)) acres")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                        }
+                        
+                        Spacer()
+                        
+                        VStack(alignment: .trailing) {
+                            Text("Perimeter")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            Text("\(String(format: "%.0f", perimeter)) ft")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(12)
+                }
+                
+                // Name Input
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Work Area Name (Optional)")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    TextField("Enter custom name", text: $workAreaName)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                }
+                
+                Spacer()
+                
+                // Action Buttons
+                HStack(spacing: 16) {
+                    Button("Cancel") {
+                        onCancel()
+                        dismiss()
+                    }
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(12)
+                    
+                    Button("Save Work Area") {
+                        onSave()
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .cornerRadius(12)
+                }
+            }
+            .padding()
+            .background(Color.black)
+            .navigationTitle("Create Work Area")
+            .navigationBarTitleDisplayMode(.inline)
+            .preferredColorScheme(.dark)
+        }
+    }
+}
+
+struct ProjectSizeButton: View {
+    let projectSize: ProjectSize
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                // Color indicator
+                Circle()
+                    .fill(projectSize.swiftUIColor)
+                    .frame(width: 16, height: 16)
+                
+                // Icon
+                Image(systemName: projectSize.icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(projectSize.swiftUIColor)
+                
+                // Text
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(projectSize.rawValue)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                    
+                    Text(projectSize.description)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+                
+                // Selection indicator
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding()
+            .background(isSelected ? Color.blue.opacity(0.2) : Color.gray.opacity(0.1))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+            )
+            .cornerRadius(12)
+        }
+    }
+}
+
 struct SearchBar: View {
     @Binding var text: String
     var onSearchButtonClicked: () -> Void
+    @StateObject private var searchCompleter = SearchCompleter()
+    @State private var showingSuggestions = false
     
     var body: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.gray)
-            
-            TextField("Search TreeShop Maps", text: $text)
-                .foregroundColor(.white)
-                .onSubmit {
-                    onSearchButtonClicked()
-                }
-            
-            if !text.isEmpty {
-                Button(action: {
-                    text = ""
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
+        VStack(spacing: 0) {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.gray)
+                
+                TextField("Search TreeShop Maps", text: $text)
+                    .foregroundColor(.white)
+                    .onSubmit {
+                        onSearchButtonClicked()
+                        hideKeyboard()
+                        showingSuggestions = false
+                    }
+                    .onChange(of: text) {
+                        searchCompleter.searchFragment = text
+                        showingSuggestions = !text.isEmpty && !searchCompleter.completions.isEmpty
+                    }
+                
+                if !text.isEmpty {
+                    Button(action: {
+                        text = ""
+                        showingSuggestions = false
+                        hideKeyboard()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
                 }
             }
+            .padding(12)
+            .background(Color.black.opacity(0.8))
+            .cornerRadius(showingSuggestions ? 10 : 10, corners: showingSuggestions ? [.topLeft, .topRight] : .allCorners)
+            
+            if showingSuggestions {
+                VStack(spacing: 0) {
+                    ForEach(Array(searchCompleter.completions.prefix(5).enumerated()), id: \.offset) { index, completion in
+                        Button(action: {
+                            text = completion.title
+                            showingSuggestions = false
+                            hideKeyboard()
+                            onSearchButtonClicked()
+                        }) {
+                            HStack {
+                                Image(systemName: "location")
+                                    .foregroundColor(.gray)
+                                    .frame(width: 20)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(completion.title)
+                                        .foregroundColor(.white)
+                                        .font(.body)
+                                        .multilineTextAlignment(.leading)
+                                    
+                                    if !completion.subtitle.isEmpty {
+                                        Text(completion.subtitle)
+                                            .foregroundColor(.gray)
+                                            .font(.caption)
+                                            .multilineTextAlignment(.leading)
+                                    }
+                                }
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                        }
+                        
+                        if index < min(4, searchCompleter.completions.count - 1) {
+                            Divider()
+                                .background(Color.gray.opacity(0.3))
+                        }
+                    }
+                }
+                .background(Color.black.opacity(0.8))
+                .cornerRadius(10, corners: [.bottomLeft, .bottomRight])
+            }
         }
-        .padding(12)
-        .background(Color.black.opacity(0.8))
-        .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.gray.opacity(0.3), lineWidth: 1)
@@ -439,6 +696,8 @@ struct SearchBar: View {
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     @Published var lastKnownLocation: CLLocation?
+    @Published var hasInitialLocation = false
+    var onLocationUpdate: ((CLLocation) -> Void)?
     
     override init() {
         super.init()
@@ -452,11 +711,76 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        lastKnownLocation = locations.last
+        guard let location = locations.last else { return }
+        lastKnownLocation = location
+        
+        if !hasInitialLocation {
+            hasInitialLocation = true
+            onLocationUpdate?(location)
+            // Stop updating after getting initial location to save battery
+            locationManager.stopUpdatingLocation()
+        }
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("Location manager failed with error: \(error.localizedDescription)")
+    }
+}
+
+// MARK: - Search Autocomplete
+class SearchCompleter: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
+    @Published var completions: [MKLocalSearchCompletion] = []
+    private let completer = MKLocalSearchCompleter()
+    
+    var searchFragment: String = "" {
+        didSet {
+            if searchFragment.isEmpty {
+                completions = []
+            } else {
+                completer.queryFragment = searchFragment
+            }
+        }
+    }
+    
+    override init() {
+        super.init()
+        completer.delegate = self
+        completer.resultTypes = [.address, .pointOfInterest]
+    }
+    
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        DispatchQueue.main.async {
+            self.completions = completer.results
+        }
+    }
+    
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
+        print("Search completer error: \(error.localizedDescription)")
+    }
+}
+
+// MARK: - Keyboard Hiding
+extension View {
+    func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+    
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }
 

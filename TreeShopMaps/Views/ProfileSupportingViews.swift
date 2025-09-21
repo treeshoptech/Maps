@@ -544,18 +544,6 @@ struct SignInPromptView: View {
     }
 }
 
-struct SignInWithAppleButton: UIViewRepresentable {
-    func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
-        let button = ASAuthorizationAppleIDButton(
-            authorizationButtonType: .signIn,
-            authorizationButtonStyle: .white
-        )
-        button.cornerRadius = 10
-        return button
-    }
-    
-    func updateUIView(_ uiView: ASAuthorizationAppleIDButton, context: Context) {}
-}
 
 struct SyncStatusCard: View {
     @ObservedObject var syncManager: CloudKitSyncManager
